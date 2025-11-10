@@ -1,29 +1,40 @@
-import pygame
-import js
+from flask import Flask, jsonify, request, send_from_directory
 
-pygame.init()
-screen = pygame.display.set_mode((600, 400))
-clock = pygame.time.Clock()
+app = Flask(__name__, static_folder="build")
 
-msg_from_js = ""
+position = {"x": 200, "y": 200}
+speed = 5
 
-def from_js(msg):
-    global msg_from_js
-    print("Mottatt fra JS:", msg)
-    # legg til eventuell spill-logikk her
-js.python = from_js
+@app.route("/")
+def index():
+    # sender index.html fra build-mappen
+    return send_from_directory(app.static_folder, "index.html")
 
-x, y = 200, 200
+@app.route("/script.js")
+def script():
+    # sender JS fra build-mappen
+    return send_from_directory(app.static_folder, "script.js")
 
-running = True
-while running:
-    for e in pygame.event.get():
-        if e.type == pygame.QUIT:
-            running = False
+@app.route("/move", methods=["POST"])
+def move():
+    global position
+    data = request.json
+    x, y = position["x"], position["y"]
+    direction = data.get("direction")
+    if direction == "up":
+        y -= speed
+    elif direction == "down":
+        y += speed
+    elif direction == "left":
+        x -= speed
+    elif direction == "right":
+        x += speed
+    position["x"], position["y"] = x, y
+    return jsonify(position)
 
-    screen.fill((50, 50, 100))
-    pygame.draw.circle(screen, (255, 0, 0), (x, y), 30)
-    pygame.display.flip()
-    clock.tick(60)
+@app.route("/position")
+def get_position():
+    return jsonify(position)
 
-pygame.quit()
+if __name__ == "__main__":
+    app.run(debug=True)
