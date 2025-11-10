@@ -1,6 +1,25 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
+const tileSize = 40;
+const rows = canvas.height / tileSize;
+const cols = canvas.width / tileSize;
+
+function drawGrid() {
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const x = col * tileSize;
+      const y = row * tileSize;
+
+      ctx.fillStyle = "green"; // tile color
+      ctx.fillRect(x, y, tileSize, tileSize);
+
+      ctx.strokeStyle = "black"; // tile border
+      ctx.strokeRect(x, y, tileSize, tileSize);
+    }
+  }
+}
+
 async function sendDirection(dir) {
   await fetch("/move", {
     method: "POST",
@@ -34,11 +53,24 @@ async function drawLoop() {
 
   ctx.clearRect(0, 0, 400, 400);
 
-  const width = 40;
-  const height = 40;
+  // Draw the grid first
+  drawGrid();
+
+  // Snap player to the nearest tile
+  const snappedX = Math.floor(pos.x / tileSize) * tileSize;
+  const snappedY = Math.floor(pos.y / tileSize) * tileSize;
+
+  const width = tileSize * 0.7;
+  const height = tileSize * 0.7;
   ctx.fillStyle = "blue";
-  ctx.fillRect(pos.x - width / 2, pos.y - height / 2, width, height);
+  ctx.fillRect(
+    snappedX + tileSize * 0.15, // center inside tile
+    snappedY + tileSize * 0.15,
+    width,
+    height
+  );
 
   requestAnimationFrame(drawLoop);
 }
+
 drawLoop();

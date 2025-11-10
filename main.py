@@ -3,7 +3,7 @@ from flask import Flask, jsonify, request, send_from_directory
 app = Flask(__name__, static_folder="build")
 
 position = {"x": 200, "y": 200}
-speed = 5
+speed = 40
 
 @app.route("/")
 def index():
