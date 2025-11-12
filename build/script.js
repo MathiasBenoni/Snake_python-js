@@ -5,21 +5,27 @@ const tileSize = 40;
 const rows = canvas.height / tileSize;
 const cols = canvas.width / tileSize;
 
+// ──────────────────────────
+// Draw Grid
+// ──────────────────────────
 function drawGrid() {
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const x = col * tileSize;
       const y = row * tileSize;
 
-      ctx.fillStyle = "green"; // tile color
+      ctx.fillStyle = "green";
       ctx.fillRect(x, y, tileSize, tileSize);
 
-      ctx.strokeStyle = "black"; // tile border
+      ctx.strokeStyle = "black";
       ctx.strokeRect(x, y, tileSize, tileSize);
     }
   }
 }
 
+// ──────────────────────────
+// Movement + Fruit
+// ──────────────────────────
 async function sendDirection(dir) {
   await fetch("/move", {
     method: "POST",
@@ -29,85 +35,101 @@ async function sendDirection(dir) {
 }
 
 async function spawnFruit() {
-  await fetch("/spawn_fruit", {
-    method: "POST",
-  });
+  await fetch("/spawn_fruit", { method: "POST" });
 }
 
+// ──────────────────────────
+// Key Input
+// ──────────────────────────
 document.addEventListener("keydown", (e) => {
-  if (e.key === "w") {
-    sendDirection("up");
-    console.log("Up");
-  }
-  if (e.key === "s") {
-    sendDirection("down");
-    console.log("Down");
-  }
-  if (e.key === "a") {
-    sendDirection("left");
-    console.log("Left");
-  }
-  if (e.key === "d") {
-    sendDirection("right");
-    console.log("Right");
-  }
+  if (e.key === "w") sendDirection("up");
+  if (e.key === "s") sendDirection("down");
+  if (e.key === "a") sendDirection("left");
+  if (e.key === "d") sendDirection("right");
 });
 
+// ──────────────────────────
+// Draw Snake Connected
+// ──────────────────────────
+function drawSnake(snakeBody, headTileX, headTileY) {
+  const offset = tileSize * 0.15;
+  const size = tileSize * 0.7;
+  const center = offset + size / 2;
+
+  ctx.fillStyle = "lightblue";
+
+  // Draw each segment
+  for (let i = 0; i < snakeBody.length; i++) {
+    const seg = snakeBody[i];
+
+    // Draw the segment square
+    ctx.fillRect(
+      seg.x * tileSize + offset,
+      seg.y * tileSize + offset,
+      size,
+      size
+    );
+  }
+
+  // Draw connections between segments
+  for (let i = 0; i < snakeBody.length; i++) {
+    const seg = snakeBody[i];
+    const prev = i === 0 ? { x: headTileX, y: headTileY } : snakeBody[i - 1];
+
+    const segCenterX = seg.x * tileSize + center;
+    const segCenterY = seg.y * tileSize + center;
+    const prevCenterX = prev.x * tileSize + center;
+    const prevCenterY = prev.y * tileSize + center;
+
+    // Draw connecting line
+    ctx.fillRect(
+      Math.min(segCenterX, prevCenterX) - size / 2,
+      Math.min(segCenterY, prevCenterY) - size / 2,
+      Math.abs(segCenterX - prevCenterX) + size,
+      Math.abs(segCenterY - prevCenterY) + size
+    );
+  }
+}
+
+// ──────────────────────────
+// Draw Loop
+// ──────────────────────────
 async function drawLoop() {
-  const res = await fetch("/position");
-  const pos = await res.json();
+  const pos = await (await fetch("/position")).json();
+  const fruits = await (await fetch("/fruits")).json();
+  const snakeBody = await (await fetch("/snake_body")).json();
 
-  const fruitsRes = await fetch("/fruits");
-  const fruits = await fruitsRes.json();
-
-  const snakeRes = await fetch("/snake_body");
-  const snakeBody = await snakeRes.json();
-
-  ctx.clearRect(0, 0, 400, 400);
-
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
 
   // Draw fruits
-  fruits.forEach((fruit) => {
-    const fruitX = fruit.x * tileSize;
-    const fruitY = fruit.y * tileSize;
+  for (const fruit of fruits) {
     ctx.fillStyle = "red";
-    ctx.fillRect(fruitX, fruitY, tileSize, tileSize);
-  });
+    ctx.fillRect(fruit.x * tileSize, fruit.y * tileSize, tileSize, tileSize);
+  }
 
-  // Draw snake body
-  snakeBody.forEach((segment, index) => {
-    const segX = segment.x * tileSize;
-    const segY = segment.y * tileSize;
+  const headTileX = Math.floor(pos.x / tileSize);
+  const headTileY = Math.floor(pos.y / tileSize);
 
-    ctx.fillStyle = "lightblue"; // tail color
+  // Draw connected snake
+  drawSnake(snakeBody, headTileX, headTileY);
 
-    ctx.fillRect(
-      segX + tileSize * 0.15,
-      segY + tileSize * 0.15,
-      tileSize * 0.7,
-      tileSize * 0.7
-    );
-  });
-
-  // Snap player to the nearest tile
-  const snappedX = Math.floor(pos.x / tileSize) * tileSize;
-  const snappedY = Math.floor(pos.y / tileSize) * tileSize;
-
-  const width = tileSize * 0.7;
-  const height = tileSize * 0.7;
+  // Draw head
+  const offset = tileSize * 0.15;
+  const size = tileSize * 0.7;
   ctx.fillStyle = "blue";
   ctx.fillRect(
-    snappedX + tileSize * 0.15, // center inside tile
-    snappedY + tileSize * 0.15,
-    width,
-    height
+    headTileX * tileSize + offset,
+    headTileY * tileSize + offset,
+    size,
+    size
   );
 
   requestAnimationFrame(drawLoop);
 }
 
-// Spawn initial fruit
+// ──────────────────────────
+// Init
+// ──────────────────────────
 spawnFruit();
-
 drawLoop();
