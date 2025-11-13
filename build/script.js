@@ -6,7 +6,8 @@ const rows = canvas.height / tileSize;
 const cols = canvas.width / tileSize;
 
 let autoMoveInterval = null;
-let currentDirection = "right"; // Start moving right
+let currentDirection = "right";
+let isGameOver = false;
 
 // ──────────────────────────
 // Draw Grid
@@ -30,15 +31,56 @@ function drawGrid() {
 // Movement + Fruit
 // ──────────────────────────
 async function sendDirection(dir) {
-  await fetch("/move", {
+  const response = await fetch("/move", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ direction: dir }),
   });
+  const data = await response.json();
+
+  if (data.game_over) {
+    handleGameOver();
+  }
 }
 
 async function spawnFruit() {
   await fetch("/spawn_fruit", { method: "POST" });
+}
+
+async function resetGame() {
+  await fetch("/reset", { method: "POST" });
+  isGameOver = false;
+  currentDirection = "right";
+  startAutoMove();
+}
+
+function handleGameOver() {
+  isGameOver = true;
+  if (autoMoveInterval) {
+    clearInterval(autoMoveInterval);
+    autoMoveInterval = null;
+  }
+
+  // Draw game over message
+  ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "red";
+  ctx.font = "bold 48px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 40);
+
+  ctx.fillStyle = "white";
+  ctx.font = "24px Arial";
+  ctx.fillText("You died!", canvas.width / 2, canvas.height / 2 + 10);
+
+  ctx.font = "20px Arial";
+  ctx.fillStyle = "lightgreen";
+  ctx.fillText(
+    "Press SPACE to restart",
+    canvas.width / 2,
+    canvas.height / 2 + 50
+  );
 }
 
 // ──────────────────────────
@@ -48,7 +90,7 @@ function startAutoMove() {
   if (autoMoveInterval) return;
 
   autoMoveInterval = setInterval(() => {
-    if (currentDirection) {
+    if (currentDirection && !isGameOver) {
       sendDirection(currentDirection);
     }
   }, 300);
@@ -58,6 +100,13 @@ function startAutoMove() {
 // Key Input
 // ──────────────────────────
 document.addEventListener("keydown", (e) => {
+  if (e.key === " " && isGameOver) {
+    resetGame();
+    return;
+  }
+
+  if (isGameOver) return;
+
   if (e.key === "w") {
     currentDirection = "up";
     startAutoMove();
@@ -108,18 +157,7 @@ function drawSnake(snakeBody, bulgeIndex, headTileX, headTileY) {
     const prevCenterX = prev.x * tileSize + tileSize / 2;
     const prevCenterY = prev.y * tileSize + tileSize / 2;
 
-    // Determine sizes for connection width
-    const isBulge = i === bulgeIndex;
-    const isPrevBulge = i === 0 ? false : i - 1 === bulgeIndex;
-
-    let connectionSize;
-    if (isBulge || isPrevBulge) {
-      // Use thin connection (0.7) when connecting to/from bulge
-      connectionSize = tileSize * 0.7;
-    } else {
-      // Normal thin connection
-      connectionSize = tileSize * 0.7;
-    }
+    const connectionSize = tileSize * 0.7;
 
     // Draw connecting line
     ctx.fillRect(
@@ -135,6 +173,11 @@ function drawSnake(snakeBody, bulgeIndex, headTileX, headTileY) {
 // Draw Loop
 // ──────────────────────────
 async function drawLoop() {
+  if (isGameOver) {
+    requestAnimationFrame(drawLoop);
+    return;
+  }
+
   const pos = await (await fetch("/position")).json();
   const fruits = await (await fetch("/fruits")).json();
   const snakeData = await (await fetch("/snake_body")).json();

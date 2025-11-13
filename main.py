@@ -16,8 +16,9 @@ speed = tile_size
 position = {"x": 200, "y": 200}
 snake_body = []
 fruits = []
-bulge_index = None  # Track which segment has the bulge
-last_direction = "right"  # Track last direction to prevent reversing
+bulge_index = None
+last_direction = "right"
+game_over = False
 
 @app.route("/")
 def index():
@@ -42,10 +43,26 @@ def get_snake_body():
 def get_fruits():
     return jsonify(fruits)
 
+@app.route("/game_over")
+def get_game_over():
+    return jsonify({"game_over": game_over})
+
 @app.route("/spawn_fruit", methods=["POST"])
 def spawn_one():
     fruit = spawn_fruit()
     return jsonify(fruit)
+
+@app.route("/reset", methods=["POST"])
+def reset():
+    global position, snake_body, fruits, bulge_index, last_direction, game_over
+    position = {"x": 200, "y": 200}
+    snake_body = []
+    fruits = []
+    bulge_index = None
+    last_direction = "right"
+    game_over = False
+    spawn_fruit()
+    return jsonify({"success": True})
 
 def player_tile():
     return int(position["x"] / tile_size), int(position["y"] / tile_size)
@@ -70,7 +87,11 @@ def spawn_fruit():
 
 @app.route("/move", methods=["POST"])
 def move():
-    global position, snake_body, fruits, bulge_index, last_direction
+    global position, snake_body, fruits, bulge_index, last_direction, game_over
+    
+    if game_over:
+        return jsonify({"game_over": True})
+    
     data = request.json
     x, y = position["x"], position["y"]
     direction = data.get("direction")
@@ -80,14 +101,27 @@ def move():
     if opposites.get(last_direction) == direction:
         direction = last_direction
     
-    if direction == "up" and y >= tile_size:
+    if direction == "up":
         y -= tile_size
-    elif direction == "down" and y <= board_height - tile_size * 2:
+    elif direction == "down":
         y += tile_size
-    elif direction == "left" and x >= tile_size:
+    elif direction == "left":
         x -= tile_size
-    elif direction == "right" and x <= board_width - tile_size * 2:
+    elif direction == "right":
         x += tile_size
+    
+    # Check wall collision
+    if x < 0 or x >= board_width or y < 0 or y >= board_height:
+        game_over = True
+        return jsonify({"game_over": True})
+    
+    # Check self collision
+    new_tile_x = int(x / tile_size)
+    new_tile_y = int(y / tile_size)
+    for seg in snake_body:
+        if seg["x"] == new_tile_x and seg["y"] == new_tile_y:
+            game_over = True
+            return jsonify({"game_over": True})
     
     last_direction = direction
 
@@ -99,7 +133,7 @@ def move():
     
     # Move bulge down the body (move 2 segments per step for faster travel)
     if bulge_index is not None:
-        bulge_index += 2  # Move faster: 2 segments per move
+        bulge_index += 2
     
     # Check if we should grow
     px, py = int(x / tile_size), int(y / tile_size)
@@ -109,7 +143,7 @@ def move():
         if fruit["x"] == px and fruit["y"] == py:
             fruits.remove(fruit)
             ate_fruit = True
-            bulge_index = 0  # Start bulge at front of body
+            bulge_index = 0
             spawn_fruit()
             break
     
@@ -117,7 +151,7 @@ def move():
     if not ate_fruit:
         # Check if bulge is at the end
         if bulge_index is not None and bulge_index >= len(snake_body):
-            bulge_index = None  # Remove bulge when it reaches the end
+            bulge_index = None
         snake_body.pop()
 
     return jsonify(position)
