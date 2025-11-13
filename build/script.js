@@ -5,6 +5,9 @@ const tileSize = 40;
 const rows = canvas.height / tileSize;
 const cols = canvas.width / tileSize;
 
+let autoMoveInterval = null;
+let currentDirection = "right"; // Start moving right
+
 // ──────────────────────────
 // Draw Grid
 // ──────────────────────────
@@ -39,28 +42,52 @@ async function spawnFruit() {
 }
 
 // ──────────────────────────
+// Auto Movement
+// ──────────────────────────
+function startAutoMove() {
+  if (autoMoveInterval) return;
+
+  autoMoveInterval = setInterval(() => {
+    if (currentDirection) {
+      sendDirection(currentDirection);
+    }
+  }, 300);
+}
+
+// ──────────────────────────
 // Key Input
 // ──────────────────────────
 document.addEventListener("keydown", (e) => {
-  if (e.key === "w") sendDirection("up");
-  if (e.key === "s") sendDirection("down");
-  if (e.key === "a") sendDirection("left");
-  if (e.key === "d") sendDirection("right");
+  if (e.key === "w") {
+    currentDirection = "up";
+    startAutoMove();
+  }
+  if (e.key === "s") {
+    currentDirection = "down";
+    startAutoMove();
+  }
+  if (e.key === "a") {
+    currentDirection = "left";
+    startAutoMove();
+  }
+  if (e.key === "d") {
+    currentDirection = "right";
+    startAutoMove();
+  }
 });
 
 // ──────────────────────────
-// Draw Snake Connected
+// Draw Snake with Single Bulge
 // ──────────────────────────
-function drawSnake(snakeBody, headTileX, headTileY) {
-  const offset = tileSize * 0.15;
-  const size = tileSize * 0.7;
-  const center = offset + size / 2;
-
+function drawSnake(snakeBody, bulgeIndex, headTileX, headTileY) {
   ctx.fillStyle = "lightblue";
 
   // Draw each segment
   for (let i = 0; i < snakeBody.length; i++) {
     const seg = snakeBody[i];
+    const isBulge = i === bulgeIndex;
+    const size = isBulge ? tileSize : tileSize * 0.7;
+    const offset = (tileSize - size) / 2;
 
     // Draw the segment square
     ctx.fillRect(
@@ -76,17 +103,30 @@ function drawSnake(snakeBody, headTileX, headTileY) {
     const seg = snakeBody[i];
     const prev = i === 0 ? { x: headTileX, y: headTileY } : snakeBody[i - 1];
 
-    const segCenterX = seg.x * tileSize + center;
-    const segCenterY = seg.y * tileSize + center;
-    const prevCenterX = prev.x * tileSize + center;
-    const prevCenterY = prev.y * tileSize + center;
+    const segCenterX = seg.x * tileSize + tileSize / 2;
+    const segCenterY = seg.y * tileSize + tileSize / 2;
+    const prevCenterX = prev.x * tileSize + tileSize / 2;
+    const prevCenterY = prev.y * tileSize + tileSize / 2;
+
+    // Determine sizes for connection width
+    const isBulge = i === bulgeIndex;
+    const isPrevBulge = i === 0 ? false : i - 1 === bulgeIndex;
+
+    let connectionSize;
+    if (isBulge || isPrevBulge) {
+      // Use thin connection (0.7) when connecting to/from bulge
+      connectionSize = tileSize * 0.7;
+    } else {
+      // Normal thin connection
+      connectionSize = tileSize * 0.7;
+    }
 
     // Draw connecting line
     ctx.fillRect(
-      Math.min(segCenterX, prevCenterX) - size / 2,
-      Math.min(segCenterY, prevCenterY) - size / 2,
-      Math.abs(segCenterX - prevCenterX) + size,
-      Math.abs(segCenterY - prevCenterY) + size
+      Math.min(segCenterX, prevCenterX) - connectionSize / 2,
+      Math.min(segCenterY, prevCenterY) - connectionSize / 2,
+      Math.abs(segCenterX - prevCenterX) + connectionSize,
+      Math.abs(segCenterY - prevCenterY) + connectionSize
     );
   }
 }
@@ -97,7 +137,7 @@ function drawSnake(snakeBody, headTileX, headTileY) {
 async function drawLoop() {
   const pos = await (await fetch("/position")).json();
   const fruits = await (await fetch("/fruits")).json();
-  const snakeBody = await (await fetch("/snake_body")).json();
+  const snakeData = await (await fetch("/snake_body")).json();
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
@@ -111,8 +151,8 @@ async function drawLoop() {
   const headTileX = Math.floor(pos.x / tileSize);
   const headTileY = Math.floor(pos.y / tileSize);
 
-  // Draw connected snake
-  drawSnake(snakeBody, headTileX, headTileY);
+  // Draw connected snake with single bulge
+  drawSnake(snakeData.segments, snakeData.bulge_index, headTileX, headTileY);
 
   // Draw head
   const offset = tileSize * 0.15;
@@ -133,3 +173,4 @@ async function drawLoop() {
 // ──────────────────────────
 spawnFruit();
 drawLoop();
+startAutoMove();

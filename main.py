@@ -16,9 +16,8 @@ speed = tile_size
 position = {"x": 200, "y": 200}
 snake_body = []
 fruits = []
-
-# growth tiles
-growth_tiles = []
+bulge_index = None  # Track which segment has the bulge
+last_direction = "right"  # Track last direction to prevent reversing
 
 @app.route("/")
 def index():
@@ -34,7 +33,10 @@ def get_position():
 
 @app.route("/snake_body")
 def get_snake_body():
-    return jsonify(snake_body)
+    return jsonify({
+        "segments": snake_body,
+        "bulge_index": bulge_index
+    })
 
 @app.route("/fruits")
 def get_fruits():
@@ -66,14 +68,18 @@ def spawn_fruit():
     fruits.append({"x": tile[0], "y": tile[1]})
     return tile
 
-
 @app.route("/move", methods=["POST"])
 def move():
-    global position, snake_body, fruits, growth_tiles
+    global position, snake_body, fruits, bulge_index, last_direction
     data = request.json
     x, y = position["x"], position["y"]
     direction = data.get("direction")
-
+    
+    # Prevent reversing direction
+    opposites = {"up": "down", "down": "up", "left": "right", "right": "left"}
+    if opposites.get(last_direction) == direction:
+        direction = last_direction
+    
     if direction == "up" and y >= tile_size:
         y -= tile_size
     elif direction == "down" and y <= board_height - tile_size * 2:
@@ -82,12 +88,18 @@ def move():
         x -= tile_size
     elif direction == "right" and x <= board_width - tile_size * 2:
         x += tile_size
+    
+    last_direction = direction
 
     old_head_tile = {"x": int(position["x"]/tile_size), "y": int(position["y"]/tile_size)}
     position["x"], position["y"] = x, y
 
     # Move body: add old head position to front
     snake_body.insert(0, old_head_tile)
+    
+    # Move bulge down the body (move 2 segments per step for faster travel)
+    if bulge_index is not None:
+        bulge_index += 2  # Move faster: 2 segments per move
     
     # Check if we should grow
     px, py = int(x / tile_size), int(y / tile_size)
@@ -97,11 +109,15 @@ def move():
         if fruit["x"] == px and fruit["y"] == py:
             fruits.remove(fruit)
             ate_fruit = True
+            bulge_index = 0  # Start bulge at front of body
             spawn_fruit()
             break
     
     # Remove tail only if we didn't eat
     if not ate_fruit:
+        # Check if bulge is at the end
+        if bulge_index is not None and bulge_index >= len(snake_body):
+            bulge_index = None  # Remove bulge when it reaches the end
         snake_body.pop()
 
     return jsonify(position)
