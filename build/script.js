@@ -6,8 +6,15 @@ const rows = canvas.height / tileSize;
 const cols = canvas.width / tileSize;
 
 let autoMoveInterval = null;
-let currentDirection = "right";
+let currentDirection = null;
 let isGameOver = false;
+let gameStarted = false;
+let hasWon = false;
+
+const FRAME_RATE = 1000 / 60; // 60 FPS
+const MOVE_INTERVAL = 300; // milliseconds between moves
+let lastMoveTime = 0;
+let lastFrameTime = 0;
 
 // ──────────────────────────
 // Draw Grid
@@ -18,11 +25,8 @@ function drawGrid() {
       const x = col * tileSize;
       const y = row * tileSize;
 
-      ctx.fillStyle = "green";
+      ctx.fillStyle = "black";
       ctx.fillRect(x, y, tileSize, tileSize);
-
-      ctx.strokeStyle = "black";
-      ctx.strokeRect(x, y, tileSize, tileSize);
     }
   }
 }
@@ -39,6 +43,7 @@ async function sendDirection(dir) {
   const data = await response.json();
 
   if (data.game_over) {
+    hasWon = data.won;
     handleGameOver();
   }
 }
@@ -47,53 +52,75 @@ async function spawnFruit() {
   await fetch("/spawn_fruit", { method: "POST" });
 }
 
+async function setFruitCount(count) {
+  await fetch("/set_fruit_count", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ count: parseInt(count) }),
+  });
+}
+
 async function resetGame() {
   await fetch("/reset", { method: "POST" });
   isGameOver = false;
-  currentDirection = "right";
-  startAutoMove();
+  hasWon = false;
+  currentDirection = null;
+  gameStarted = false;
+  lastMoveTime = 0;
 }
 
 function handleGameOver() {
   isGameOver = true;
-  if (autoMoveInterval) {
-    clearInterval(autoMoveInterval);
-    autoMoveInterval = null;
-  }
 
-  // Draw game over message
-  ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Draw game over message on next frame
+  setTimeout(() => {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.fillStyle = "red";
-  ctx.font = "bold 48px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 40);
+    if (hasWon) {
+      ctx.fillStyle = "gold";
+      ctx.font = "bold 48px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("YOU WIN!", canvas.width / 2, canvas.height / 2 - 40);
 
-  ctx.fillStyle = "white";
-  ctx.font = "24px Arial";
-  ctx.fillText("You died!", canvas.width / 2, canvas.height / 2 + 10);
+      ctx.fillStyle = "white";
+      ctx.font = "24px Arial";
+      ctx.fillText(
+        "Board completely filled!",
+        canvas.width / 2,
+        canvas.height / 2 + 10
+      );
+    } else {
+      ctx.fillStyle = "red";
+      ctx.font = "bold 48px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 40);
 
-  ctx.font = "20px Arial";
-  ctx.fillStyle = "lightgreen";
-  ctx.fillText(
-    "Press SPACE to restart",
-    canvas.width / 2,
-    canvas.height / 2 + 50
-  );
+      ctx.fillStyle = "white";
+      ctx.font = "24px Arial";
+      ctx.fillText("You crashed!", canvas.width / 2, canvas.height / 2 + 10);
+    }
+
+    ctx.font = "20px Arial";
+    ctx.fillStyle = "lightgreen";
+    ctx.fillText(
+      "Press SPACE to restart",
+      canvas.width / 2,
+      canvas.height / 2 + 50
+    );
+  }, 50);
 }
 
 // ──────────────────────────
-// Auto Movement
+// Auto Movement with consistent timing
 // ──────────────────────────
-function startAutoMove() {
-  if (autoMoveInterval) return;
-
-  autoMoveInterval = setInterval(() => {
-    if (currentDirection && !isGameOver) {
+function updateGame(currentTime) {
+  if (currentDirection && !isGameOver && gameStarted) {
+    if (currentTime - lastMoveTime >= MOVE_INTERVAL) {
       sendDirection(currentDirection);
+      lastMoveTime = currentTime;
     }
-  }, 300);
+  }
 }
 
 // ──────────────────────────
@@ -101,27 +128,50 @@ function startAutoMove() {
 // ──────────────────────────
 document.addEventListener("keydown", (e) => {
   if (e.key === " " && isGameOver) {
+    e.preventDefault();
     resetGame();
     return;
   }
 
   if (isGameOver) return;
 
-  if (e.key === "w") {
-    currentDirection = "up";
-    startAutoMove();
+  let newDirection = null;
+
+  if (e.key === "w" || e.keyCode == 38) {
+    newDirection = "up";
   }
-  if (e.key === "s") {
-    currentDirection = "down";
-    startAutoMove();
+  if (e.key === "s" || e.keyCode == 40) {
+    newDirection = "down";
   }
-  if (e.key === "a") {
-    currentDirection = "left";
-    startAutoMove();
+  if (e.key === "a" || e.keyCode == 37) {
+    newDirection = "left";
   }
-  if (e.key === "d") {
-    currentDirection = "right";
-    startAutoMove();
+  if (e.key === "d" || e.keyCode == 39) {
+    newDirection = "right";
+  }
+
+  // If a valid direction key was pressed
+  if (newDirection) {
+    // Prevent starting with opposite direction
+    if (!gameStarted) {
+      const opposites = {
+        up: "down",
+        down: "up",
+        left: "right",
+        right: "left",
+      };
+      const initialDirection = "right";
+
+      if (opposites[initialDirection] === newDirection) {
+        return;
+      }
+
+      gameStarted = true;
+      currentDirection = newDirection;
+      lastMoveTime = performance.now();
+    } else {
+      currentDirection = newDirection;
+    }
   }
 });
 
@@ -129,7 +179,7 @@ document.addEventListener("keydown", (e) => {
 // Draw Snake with Single Bulge
 // ──────────────────────────
 function drawSnake(snakeBody, bulgeIndex, headTileX, headTileY) {
-  ctx.fillStyle = "lightblue";
+  ctx.fillStyle = "white";
 
   // Draw each segment
   for (let i = 0; i < snakeBody.length; i++) {
@@ -138,7 +188,6 @@ function drawSnake(snakeBody, bulgeIndex, headTileX, headTileY) {
     const size = isBulge ? tileSize : tileSize * 0.7;
     const offset = (tileSize - size) / 2;
 
-    // Draw the segment square
     ctx.fillRect(
       seg.x * tileSize + offset,
       seg.y * tileSize + offset,
@@ -159,7 +208,6 @@ function drawSnake(snakeBody, bulgeIndex, headTileX, headTileY) {
 
     const connectionSize = tileSize * 0.7;
 
-    // Draw connecting line
     ctx.fillRect(
       Math.min(segCenterX, prevCenterX) - connectionSize / 2,
       Math.min(segCenterY, prevCenterY) - connectionSize / 2,
@@ -170,9 +218,19 @@ function drawSnake(snakeBody, bulgeIndex, headTileX, headTileY) {
 }
 
 // ──────────────────────────
-// Draw Loop
+// Draw Loop with consistent framerate
 // ──────────────────────────
-async function drawLoop() {
+async function drawLoop(currentTime) {
+  // Throttle to consistent frame rate
+  if (currentTime - lastFrameTime < FRAME_RATE) {
+    requestAnimationFrame(drawLoop);
+    return;
+  }
+  lastFrameTime = currentTime;
+
+  // Update game logic
+  updateGame(currentTime);
+
   if (isGameOver) {
     requestAnimationFrame(drawLoop);
     return;
@@ -187,20 +245,24 @@ async function drawLoop() {
 
   // Draw fruits
   for (const fruit of fruits) {
-    ctx.fillStyle = "red";
-    ctx.fillRect(fruit.x * tileSize, fruit.y * tileSize, tileSize, tileSize);
+    ctx.fillStyle = "white";
+    ctx.fillRect(
+      fruit.x * tileSize + tileSize * 0.25,
+      fruit.y * tileSize + tileSize * 0.25,
+      tileSize * 0.5,
+      tileSize * 0.5
+    );
   }
 
   const headTileX = Math.floor(pos.x / tileSize);
   const headTileY = Math.floor(pos.y / tileSize);
 
-  // Draw connected snake with single bulge
   drawSnake(snakeData.segments, snakeData.bulge_index, headTileX, headTileY);
 
   // Draw head
   const offset = tileSize * 0.15;
   const size = tileSize * 0.7;
-  ctx.fillStyle = "blue";
+  ctx.fillStyle = "white";
   ctx.fillRect(
     headTileX * tileSize + offset,
     headTileY * tileSize + offset,
@@ -208,12 +270,38 @@ async function drawLoop() {
     size
   );
 
+  // Draw start message
+  if (!gameStarted) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+    ctx.fillRect(0, canvas.height / 2 - 40, canvas.width, 80);
+
+    ctx.fillStyle = "white";
+    ctx.font = "24px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(
+      "Press any arrow key to start",
+      canvas.width / 2,
+      canvas.height / 2
+    );
+  }
+
   requestAnimationFrame(drawLoop);
 }
+
+// ──────────────────────────
+// Fruit Count Control
+// ──────────────────────────
+const fruitInput = document.getElementById("fruitCount");
+const fruitButton = document.getElementById("setFruitCount");
+
+fruitButton.addEventListener("click", async () => {
+  const count = fruitInput.value;
+  await setFruitCount(count);
+  await resetGame();
+});
 
 // ──────────────────────────
 // Init
 // ──────────────────────────
 spawnFruit();
-drawLoop();
-startAutoMove();
+requestAnimationFrame(drawLoop);

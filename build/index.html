@@ -1,22 +1,107 @@
 <!DOCTYPE html>
 <html>
 <head>
+<meta charset="UTF-8">
+
+<style>
+/* Global layout */
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #1e1e1e;
+    color: #e6e6e6;
+    margin: 0;
+    height: 100vh;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+
+    padding-top: 40px;
+}
+
+/* Titles */
+h1 {
+    margin: 0;
+    font-size: 2.2rem;
+    color: #ffffff;
+    text-shadow: 0 0 6px rgba(255, 255, 255, 0.2);
+}
+
+h2 {
+    margin-top: 8px;
+    margin-bottom: 25px;
+    font-weight: 400;
+    color: #cfcfcf;
+}
+
+/* Control panel */
+.controls {
+    background: #2a2a2a;
+    padding: 15px 20px;
+    border-radius: 12px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.controls label {
+    color: #e6e6e6;
+    font-size: 0.95rem;
+}
+
+.controls input {
+    width: 70px;
+    padding: 6px;
+    border-radius: 8px;
+    border: none;
+    background: #3a3a3a;
+    color: #fff;
+    text-align: center;
+}
+
+.controls button {
+    padding: 7px 12px;
+    border: none;
+    border-radius: 8px;
+    background: #4CAF50;
+    color: white;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.controls button:hover {
+    background: #45a049;
+}
+
+.controls button:active {
+    transform: scale(0.95);
+}
+
+/* Canvas */
+canvas {
+    background: #111;
+    border: 3px solid #333;
+    border-radius: 12px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.4);
+}
+</style>
 
 </head>
 <body>
 
-<canvas id="game" width="400" height="400"></canvas>
+<div class="controls">
+    <label for="fruitCount">Number of Fruits:</label>
+    <input type="number" id="fruitCount" min="1" max="20" value="1">
+    <button id="setFruitCount">Set & Restart</button>
+</div>
 
-<style>
-body {
-  background-color: #FFFFFF;
-  margin: 0;
-  display: flex;
-  justify-content: center; 
-  align-items: center; 
-  height: 100vh;           
-}
-</style>
+<h1>Snake</h1>
+<h2>WASD or arrowkeys to move</h2>
+
+<canvas id="game" width="400" height="400"></canvas>
 
 <script src="script.js"></script>
 

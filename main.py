@@ -14,11 +14,12 @@ speed = tile_size
 
 # --- Game state ---
 position = {"x": 200, "y": 200}
-snake_body = []
+snake_body = [{"x": 4, "y": 5}]
 fruits = []
 bulge_index = None
 last_direction = "right"
 game_over = False
+max_fruits = 1  # Default number of fruits
 
 @app.route("/")
 def index():
@@ -47,6 +48,14 @@ def get_fruits():
 def get_game_over():
     return jsonify({"game_over": game_over})
 
+@app.route("/set_fruit_count", methods=["POST"])
+def set_fruit_count():
+    global max_fruits
+    data = request.json
+    count = data.get("count", 1)
+    max_fruits = max(1, min(count, 20))  # Between 1 and 20
+    return jsonify({"max_fruits": max_fruits})
+
 @app.route("/spawn_fruit", methods=["POST"])
 def spawn_one():
     fruit = spawn_fruit()
@@ -56,12 +65,16 @@ def spawn_one():
 def reset():
     global position, snake_body, fruits, bulge_index, last_direction, game_over
     position = {"x": 200, "y": 200}
-    snake_body = []
+    snake_body = [{"x": 4, "y": 5}]
     fruits = []
     bulge_index = None
     last_direction = "right"
     game_over = False
-    spawn_fruit()
+    
+    # Spawn initial fruits based on max_fruits
+    for _ in range(max_fruits):
+        spawn_fruit()
+    
     return jsonify({"success": True})
 
 def player_tile():
@@ -85,12 +98,19 @@ def spawn_fruit():
     fruits.append({"x": tile[0], "y": tile[1]})
     return tile
 
+def check_win_condition():
+    """Check if the board is completely filled with snake"""
+    total_tiles = cols * rows
+    # Head + body segments
+    snake_length = 1 + len(snake_body)
+    return snake_length >= total_tiles
+
 @app.route("/move", methods=["POST"])
 def move():
     global position, snake_body, fruits, bulge_index, last_direction, game_over
     
     if game_over:
-        return jsonify({"game_over": True})
+        return jsonify({"game_over": True, "won": False})
     
     data = request.json
     x, y = position["x"], position["y"]
@@ -101,6 +121,7 @@ def move():
     if opposites.get(last_direction) == direction:
         direction = last_direction
     
+    # Calculate new position
     if direction == "up":
         y -= tile_size
     elif direction == "down":
@@ -110,10 +131,11 @@ def move():
     elif direction == "right":
         x += tile_size
     
-    # Check wall collision
+    # Check wall collision BEFORE updating position
     if x < 0 or x >= board_width or y < 0 or y >= board_height:
         game_over = True
-        return jsonify({"game_over": True})
+        won = check_win_condition()
+        return jsonify({"game_over": True, "won": won})
     
     # Check self collision
     new_tile_x = int(x / tile_size)
@@ -121,7 +143,8 @@ def move():
     for seg in snake_body:
         if seg["x"] == new_tile_x and seg["y"] == new_tile_y:
             game_over = True
-            return jsonify({"game_over": True})
+            won = check_win_condition()
+            return jsonify({"game_over": True, "won": won})
     
     last_direction = direction
 
@@ -144,6 +167,7 @@ def move():
             fruits.remove(fruit)
             ate_fruit = True
             bulge_index = 0
+            # Maintain fruit count
             spawn_fruit()
             break
     
@@ -154,8 +178,9 @@ def move():
             bulge_index = None
         snake_body.pop()
 
-    return jsonify(position)
+    return jsonify({"game_over": False, "won": False, "position": position})
 
 if __name__ == "__main__":
-    spawn_fruit()
+    for _ in range(max_fruits):
+        spawn_fruit()
     app.run(debug=True)
