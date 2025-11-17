@@ -1,3 +1,5 @@
+const API_BASE_URL = "https://backend-snake-rx8g.onrender.com";
+
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
@@ -35,7 +37,7 @@ function drawGrid() {
 // Movement + Fruit
 // ──────────────────────────
 async function sendDirection(dir) {
-  const response = await fetch("/move", {
+  const response = await fetch(`${API_BASE_URL}/move`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ direction: dir }),
@@ -49,11 +51,11 @@ async function sendDirection(dir) {
 }
 
 async function spawnFruit() {
-  await fetch("/spawn_fruit", { method: "POST" });
+  await fetch(`${API_BASE_URL}/spawn_fruit`, { method: "POST" });
 }
 
 async function setFruitCount(count) {
-  await fetch("/set_fruit_count", {
+  await fetch(`${API_BASE_URL}/set_fruit_count`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ count: parseInt(count) }),
@@ -61,7 +63,7 @@ async function setFruitCount(count) {
 }
 
 async function resetGame() {
-  await fetch("/reset", { method: "POST" });
+  await fetch(`${API_BASE_URL}/reset`, { method: "POST" });
   isGameOver = false;
   hasWon = false;
   currentDirection = null;
@@ -236,9 +238,9 @@ async function drawLoop(currentTime) {
     return;
   }
 
-  const pos = await (await fetch("/position")).json();
-  const fruits = await (await fetch("/fruits")).json();
-  const snakeData = await (await fetch("/snake_body")).json();
+  const pos = await (await fetch(`${API_BASE_URL}/position`)).json();
+  const fruits = await (await fetch(`${API_BASE_URL}/fruits`)).json();
+  const snakeData = await (await fetch(`${API_BASE_URL}/snake_body`)).json();
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
